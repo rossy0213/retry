@@ -18,7 +18,7 @@ func TestDefaultRegular_Next(t *testing.T) {
 		if eb.nextInterval >= eb.maxInterval {
 			break
 		}
-		assert.True(t, time.Duration(float64(interval)+float64(eb.regularInterval)) <= d)
+		assert.True(t, time.Duration(float64(interval)+float64(eb.regularInterval)-float64(eb.maxJitterInterval)) <= d)
 		assert.True(t, time.Duration(float64(interval)+float64(eb.regularInterval)+float64(eb.maxJitterInterval)) >= d)
 	}
 }
