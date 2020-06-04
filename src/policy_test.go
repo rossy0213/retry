@@ -56,3 +56,9 @@ func TestSetPolicy(t *testing.T) {
 	assert.EqualValues(t, retryType, p.retryType)
 	assert.EqualValues(t, randomFactor, p.randomFactor)
 }
+
+func TestDefaultRetryable(t *testing.T) {
+	retryable := defaultRetryable()
+	err := errors.New("test")
+	assert.False(t, retryable(err))
+}

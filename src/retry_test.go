@@ -26,8 +26,10 @@ func TestDoRetryable(t *testing.T) {
 
 func TestDoNotRetryable(t *testing.T) {
 	tErr := errors.New("test")
+	c := 0
 	err := Do(
 		func() error {
+			c++
 			return errors.New("not retryable")
 		},
 		Retryable(func(err error) bool {
@@ -38,28 +40,30 @@ func TestDoNotRetryable(t *testing.T) {
 		}),
 	)
 	assert.Equal(t, err, errors.New("not retryable"))
+	assert.Equal(t, 1, c)
 }
 
 func TestDoNoRetry(t *testing.T) {
-	tErr := errors.New("test")
+	c := 0
 	err := Do(
 		func() error {
+			c++
 			return nil
 		},
-		Retryable(func(err error) bool {
-			if err == tErr {
-				return true
-			}
-			return false
-		}),
 	)
 	assert.Nil(t, err)
+	assert.Equal(t, 1, c)
 }
 
 func TestDoRegular(t *testing.T) {
 	tErr := errors.New("test")
+	c := 0
 	err := Do(
 		func() error {
+			c++
+			if c == 2 {
+				return nil
+			}
 			return tErr
 		},
 		Retryable(func(err error) bool {
@@ -69,17 +73,24 @@ func TestDoRegular(t *testing.T) {
 			return false
 		}),
 		RetryType(RegularRetry),
-		RegularInterval(300*time.Millisecond),
+		RegularInterval(400*time.Millisecond),
 	)
-	assert.Equal(t, err, tErr)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, c)
 }
 
-func TestDoMaxRetry(t *testing.T) {
+func TestDoMaxRegularRetry(t *testing.T) {
 	tErr := errors.New("test")
+	maxRetryTimes := 4
+
+	c := 0
+	start := time.Now()
 	err := Do(
 		func() error {
+			c++
 			return tErr
 		},
+		MaxRetryTimes(uint(maxRetryTimes)),
 		Retryable(func(err error) bool {
 			if err == tErr {
 				return true
@@ -87,7 +98,36 @@ func TestDoMaxRetry(t *testing.T) {
 			return false
 		}),
 		RetryType(RegularRetry),
-		RegularInterval(300*time.Millisecond),
 	)
+	end := time.Now()
+
 	assert.Equal(t, err, tErr)
+	assert.Equal(t, maxRetryTimes, c)
+	assert.True(t, end.Sub(start).Milliseconds() < 1200)
+}
+
+func TestDoMaxBackoffRetry(t *testing.T) {
+	tErr := errors.New("test")
+	maxRetryTimes := 4
+
+	c := 0
+	start := time.Now()
+	err := Do(
+		func() error {
+			c++
+			return tErr
+		},
+		MaxRetryTimes(uint(maxRetryTimes)),
+		Retryable(func(err error) bool {
+			if err == tErr {
+				return true
+			}
+			return false
+		}),
+	)
+	end := time.Now()
+
+	assert.Equal(t, err, tErr)
+	assert.Equal(t, maxRetryTimes, c)
+	assert.True(t, end.Sub(start).Milliseconds() < 1000)
 }

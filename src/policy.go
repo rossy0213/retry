@@ -26,7 +26,7 @@ type Policy struct {
 func NewDefaultPolicy() *Policy {
 	return &Policy{
 		maxRetryTimes:     DefaultMaxRetryTimes,
-		retryable:         nil,
+		retryable:         defaultRetryable(),
 		interval:          DefaultInterval,
 		maxInterval:       DefaultMaxInterval,
 		maxJitterInterval: DefaultJitterInterval,
@@ -35,6 +35,12 @@ func NewDefaultPolicy() *Policy {
 		multiplier:        DefaultMultiplier,
 		retryType:         DefaultRetryType,
 		randomFactor:      DefaultRandomFactor,
+	}
+}
+
+func defaultRetryable() isRetryable {
+	return func(error) bool {
+		return false
 	}
 }
 
