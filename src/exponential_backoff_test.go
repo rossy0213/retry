@@ -8,8 +8,7 @@ import (
 )
 
 func TestDefaultBackoff_Next(t *testing.T) {
-	p := NewDefaultPolicy()
-	eb := NewExponentialBackoff(p)
+	eb := DefaultExponentialBackoff()
 
 	var d time.Duration
 	for {
@@ -19,7 +18,7 @@ func TestDefaultBackoff_Next(t *testing.T) {
 			break
 		}
 
-		assert.True(t, time.Duration(float64(interval)*(1-eb.randomFactor)) <= d)
-		assert.True(t, time.Duration(float64(interval)*(1+eb.randomFactor)) >= d)
+		assert.True(t, time.Duration(float64(interval-eb.maxJitterInterval)) <= d)
+		assert.True(t, time.Duration(float64(interval+eb.maxJitterInterval)) >= d)
 	}
 }
