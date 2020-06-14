@@ -1,58 +1,68 @@
 package retry4go
 
 import (
+	"context"
 	"time"
 )
 
 const (
-	DefaultInterval        = 100.0 * time.Millisecond
-	DefaultMaxInterval     = 1000.0 * time.Millisecond
-	DefaultMaxRetryTimes   = 3
-	DefaultJitterInterval  = DefaultInterval
-	DefaultRegularInterval = DefaultInterval
-	DefaultRetryType       = BackOffRetry
-	DefaultMultiplier      = 2.0
-	DefaultRandomFactor    = 0.5
+	DefaultMaxRetryTimes  = 5
+	DefaultInterval       = 100.0 * time.Millisecond
+	DefaultMaxInterval    = 1000.0 * time.Millisecond
+	DefaultJitterInterval = 30.0 * time.Millisecond
+	DefaultMultiplier     = 2.0
+	DefaultElapsedTime    = 5 * time.Second
 )
 
 type RetryableFunc func() error
 
+type checkRetryable func(err error) bool
+
+func canRetry(cr checkRetryable, err error) bool {
+	return cr(err)
+}
+
 func Do(fn RetryableFunc, cfs ...Config) error {
-	var c uint
-	var err error
+	return DoWithContext(nil, fn, cfs...)
+}
 
-	p := NewDefaultPolicy()
+func DoWithContext(ctx context.Context, fn RetryableFunc, cfs ...Config) error {
+	eb := DefaultExponentialBackoff()
 	for _, cf := range cfs {
-		cf(p)
+		cf(eb)
 	}
 
-	var rt Retry
-	switch p.retryType {
-	case RegularRetry:
-		rt = NewRegular(p)
-	default:
-		rt = NewExponentialBackoff(p)
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	be := withContext(ctx, eb)
 
-	for c < p.maxRetryTimes {
-		err = fn()
+	t := &defaultTimer{}
+	defer func() {
+		t.Stop()
+	}()
 
-		if err != nil {
-			if !p.isRetryableError(err, p.retryable) {
-				return err
-			}
-
-			if c >= p.maxRetryTimes-1 {
-				break
-			}
-
-			d := rt.Next()
-			time.Sleep(d)
-		} else {
+	var err error
+	var next time.Duration
+	for {
+		if err = fn(); err == nil {
 			return nil
 		}
 
-		c++
+		if !canRetry(be.checkRetryable, err) {
+			return err
+		}
+
+		if next = be.Next(); next == Stop {
+			return err
+		}
+
+		t.Start(next)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-t.C():
+		}
 	}
-	return err
 }
