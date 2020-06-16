@@ -1,4 +1,4 @@
-package retry4go
+package retry
 
 import (
 	"context"
@@ -22,10 +22,14 @@ func withContext(ctx context.Context, eb *exponentialBackoff) *backoffWithContex
 	}
 }
 
+// Get Context from Backoff
 func (bc *backoffWithContext) Context() context.Context {
 	return bc.ctx
 }
 
+// Return the waiting time.
+// Will return Stop when if received message from context.Done().
+// And if maxRetryTimes == 0 or smaller than retryTimes, will return Stop.
 func (bc *backoffWithContext) Next() time.Duration {
 	select {
 	case <-bc.ctx.Done():

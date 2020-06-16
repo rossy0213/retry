@@ -1,9 +1,18 @@
-package retry4go
+package retry
 
 import (
 	"math"
 	"math/rand"
 	"time"
+)
+
+const (
+	DefaultMaxRetryTimes  = 10
+	DefaultInterval       = 100.0 * time.Millisecond
+	DefaultMaxInterval    = 1000.0 * time.Millisecond
+	DefaultJitterInterval = 30.0 * time.Millisecond
+	DefaultMultiplier     = 2.0
+	DefaultMaxElapsedTime = 5 * time.Minute
 )
 
 type exponentialBackoff struct {
@@ -16,8 +25,8 @@ type exponentialBackoff struct {
 	nextInterval      time.Duration
 	multiplier        float64
 
-	maxElapsedTime time.Duration
 	startTime      time.Time
+	maxElapsedTime time.Duration
 }
 
 func DefaultExponentialBackoff() *exponentialBackoff {
@@ -30,13 +39,15 @@ func DefaultExponentialBackoff() *exponentialBackoff {
 		nextInterval:      DefaultInterval,
 		multiplier:        DefaultMultiplier,
 		startTime:         time.Now(),
-
-		// need move to policy
-		checkRetryable: defaultCheckRetryable(),
-		maxElapsedTime: DefaultElapsedTime,
+		maxElapsedTime:    DefaultMaxElapsedTime,
+		checkRetryable: func(error) bool {
+			return false
+		},
 	}
 }
 
+// Return the waiting time.
+// If maxRetryTimes == 0 or smaller than retryTimes, will return Stop.
 func (eb *exponentialBackoff) Next() time.Duration {
 	if eb.maxRetryTimes == 0 || eb.retryTimes >= eb.maxRetryTimes {
 		return Stop
@@ -44,8 +55,9 @@ func (eb *exponentialBackoff) Next() time.Duration {
 	return eb.NextBackoff()
 }
 
+// If waiting time bigger than time remaining, will return Stop.
 func (eb *exponentialBackoff) NextBackoff() time.Duration {
-	next := eb.getRandomizedInterval(eb.retryTimes, eb.nextInterval)
+	next := eb.getRandomizedInterval(eb.nextInterval)
 	eb.retryTimes++
 
 	// calculate and assign the correct nextInterval
@@ -58,16 +70,13 @@ func (eb *exponentialBackoff) NextBackoff() time.Duration {
 	return next
 }
 
+// Return time that has elapsed since the backoff instance was created.
 func (eb *exponentialBackoff) getElapsedTime() time.Duration {
 	return time.Now().Sub(eb.startTime)
 }
 
-// formula: [ nextInterval - maxJitter, nextInterval - maxJitter]
-func (eb *exponentialBackoff) getRandomizedInterval(t uint, i time.Duration) time.Duration {
-	if t == 0 {
-		return i
-	}
-
+// Will return : [ nextInterval - maxJitter, nextInterval - maxJitter]
+func (eb *exponentialBackoff) getRandomizedInterval(i time.Duration) time.Duration {
 	s := rand.New(rand.NewSource(time.Now().UnixNano()))
 	min := float64(i) - float64(eb.maxJitterInterval)
 	max := float64(i) + float64(eb.maxJitterInterval)

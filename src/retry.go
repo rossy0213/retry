@@ -1,35 +1,28 @@
-package retry4go
+package retry
 
 import (
 	"context"
 	"time"
 )
 
-const (
-	DefaultMaxRetryTimes  = 5
-	DefaultInterval       = 100.0 * time.Millisecond
-	DefaultMaxInterval    = 1000.0 * time.Millisecond
-	DefaultJitterInterval = 30.0 * time.Millisecond
-	DefaultMultiplier     = 2.0
-	DefaultElapsedTime    = 5 * time.Second
-)
-
+// The function will be retried when if it return an error.
 type RetryableFunc func() error
 
+// Using to check if error from RetryableFunc can retry or not.
 type checkRetryable func(err error) bool
 
-func canRetry(cr checkRetryable, err error) bool {
-	return cr(err)
+// Do creates a new Backff for the retry with the passed options,
+// And will retry RetryableFunc when if it return an error.
+func Do(fn RetryableFunc, ops ...Option) error {
+	return DoWithContext(nil, fn, ops...)
 }
 
-func Do(fn RetryableFunc, cfs ...Config) error {
-	return DoWithContext(nil, fn, cfs...)
-}
-
-func DoWithContext(ctx context.Context, fn RetryableFunc, cfs ...Config) error {
+// DoWithContext using goroutine to sleep and monitoring context.Done().
+// Will stop the retry once receive it from Context.Done().
+func DoWithContext(ctx context.Context, fn RetryableFunc, ops ...Option) error {
 	eb := DefaultExponentialBackoff()
-	for _, cf := range cfs {
-		cf(eb)
+	for _, op := range ops {
+		op(eb)
 	}
 
 	if ctx == nil {
@@ -49,7 +42,7 @@ func DoWithContext(ctx context.Context, fn RetryableFunc, cfs ...Config) error {
 			return nil
 		}
 
-		if !canRetry(be.checkRetryable, err) {
+		if !be.checkRetryable(err) {
 			return err
 		}
 
