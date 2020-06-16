@@ -1,4 +1,4 @@
-package retry4go
+package retry
 
 import (
 	"context"
@@ -9,177 +9,192 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TODO: change to table driven tests
-
-func TestDoRetryable(t *testing.T) {
+func TestRetryDo(t *testing.T) {
 	tErr := errors.New("test")
-	err := Do(
-		func() error {
-			return tErr
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		rt   uint
+		cr   checkRetryable
+		i    time.Duration
+		mi   time.Duration
+		ji   time.Duration
+		m    float64
+		et   time.Duration
+
+		// result
+		resultRrr error
+		doErr     error
+		c         int
+	}{
+		{
+			name: "retryable and retry one time",
+			rt:   1,
+			cr: func(err error) bool {
+				if err == tErr {
+					return true
+				}
+				return false
+			},
+			i:         100 * time.Millisecond,
+			mi:        1000 * time.Millisecond,
+			ji:        30 * time.Millisecond,
+			m:         2,
+			et:        5 * time.Minute,
+			doErr:     tErr,
+			resultRrr: tErr,
+			c:         2,
 		},
-		CheckRetryable(func(err error) bool {
-			if err == tErr {
+		{
+			name: "not retryable",
+			rt:   3,
+			cr: func(err error) bool {
+				if err == tErr {
+					return false
+				}
 				return true
-			}
-			return false
-		}),
-	)
-	assert.Equal(t, err, tErr)
-}
-
-func TestDoNotRetryable(t *testing.T) {
-	tErr := errors.New("test")
-	c := 0
-	err := Do(
-		func() error {
-			c++
-			return errors.New("not retryable")
+			},
+			i:         100 * time.Millisecond,
+			mi:        1000 * time.Millisecond,
+			ji:        30 * time.Millisecond,
+			m:         2,
+			et:        5 * time.Minute,
+			doErr:     tErr,
+			resultRrr: tErr,
+			c:         1,
 		},
-		CheckRetryable(func(err error) bool {
-			if err == tErr {
-				return true
-			}
-			return false
-		}),
-	)
-	assert.Equal(t, err, errors.New("not retryable"))
-	assert.Equal(t, 1, c)
-}
-
-func TestDoNoRetry(t *testing.T) {
-	c := 0
-	err := Do(
-		func() error {
-			c++
-			return nil
+		{
+			name: "retryable and retry max times",
+			rt:   3,
+			cr: func(err error) bool {
+				if err == tErr {
+					return true
+				}
+				return false
+			},
+			i:         100 * time.Millisecond,
+			mi:        1000 * time.Millisecond,
+			ji:        30 * time.Millisecond,
+			m:         2,
+			et:        5 * time.Minute,
+			doErr:     tErr,
+			resultRrr: tErr,
+			c:         4,
 		},
-	)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, c)
-}
-
-func TestDoMaxBackoffRetry(t *testing.T) {
-	tErr := errors.New("test")
-	maxRetryTimes := 4
-	maxJitterInterval := 30 * time.Millisecond
-
-	c := 0
-	start := time.Now()
-	err := Do(
-		func() error {
-			c++
-			return tErr
+		{
+			name: "no need retry",
+			rt:   1,
+			cr: func(err error) bool {
+				if err == tErr {
+					return true
+				}
+				return false
+			},
+			i:         100 * time.Millisecond,
+			mi:        1000 * time.Millisecond,
+			ji:        30 * time.Millisecond,
+			m:         2,
+			et:        5 * time.Minute,
+			doErr:     nil,
+			resultRrr: nil,
+			c:         1,
 		},
-		MaxRetryTimes(uint(maxRetryTimes)),
-		CheckRetryable(func(err error) bool {
-			if err == tErr {
-				return true
-			}
-			return false
-		}),
-		MaxJitterInterval(maxJitterInterval),
-	)
-	end := time.Now()
-
-	assert.Equal(t, err, tErr)
-	assert.Equal(t, maxRetryTimes+1, c)
-	assert.True(t, end.Sub(start).Milliseconds() >= 1500-int64(maxRetryTimes)*int64(maxJitterInterval))
-	assert.True(t, end.Sub(start).Milliseconds() <= 1600+int64(maxRetryTimes)*int64(maxJitterInterval))
-}
-
-func TestDoMaxElapsedTime(t *testing.T) {
-	tErr := errors.New("test")
-	maxElapsedTime := 200 * time.Millisecond
-
-	c := 0
-	start := time.Now()
-	err := Do(
-		func() error {
-			c++
-			return tErr
+		{
+			name: "max elapsed time",
+			rt:   10,
+			cr: func(err error) bool {
+				if err == tErr {
+					return true
+				}
+				return false
+			},
+			i:         100 * time.Millisecond,
+			mi:        1000 * time.Millisecond,
+			ji:        30 * time.Millisecond,
+			m:         2,
+			et:        400 * time.Millisecond,
+			doErr:     tErr,
+			resultRrr: tErr,
+			c:         3,
 		},
-		CheckRetryable(func(err error) bool {
-			if err == tErr {
-				return true
-			}
-			return false
-		}),
-		MaxElapsedTime(maxElapsedTime),
-	)
-	end := time.Now()
+	}
 
-	assert.Equal(t, err, tErr)
-	assert.Equal(t, 2, c)
-	assert.True(t, end.Sub(start) >= DefaultInterval-DefaultJitterInterval)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := 0
+			err := Do(
+				func() error {
+					c++
+					return tt.doErr
+				},
+				Interval(tt.i),
+				MaxRetryTimes(tt.rt),
+				MaxJitterInterval(tt.ji),
+				CheckRetryable(tt.cr),
+				MaxElapsedTime(tt.et),
+				MaxInterval(tt.mi),
+				Multiplier(tt.m),
+			)
+			assert.Equal(t, tt.resultRrr, err)
+			assert.EqualValues(t, tt.c, c)
+		})
+	}
 }
 
-func TestDoWithContext(t *testing.T) {
-	tErr := errors.New("test")
-	maxRetryTimes := 3
-	maxJitterInterval := 0 * time.Millisecond
-
+func TestDoWithContextMaxElapsedTime(t *testing.T) {
+	t.Parallel()
 	c := 0
-	start := time.Now()
-	ctx := context.Background()
-	reqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	tErr := errors.New("test")
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
+
+	start := time.Now()
 	err := DoWithContext(
-		reqCtx,
+		ctx,
 		func() error {
 			c++
 			return tErr
 		},
-		MaxRetryTimes(uint(maxRetryTimes)),
 		CheckRetryable(func(err error) bool {
-			if err == tErr {
-				return true
-			}
-			return false
+			return true
 		}),
-		MaxJitterInterval(maxJitterInterval),
 	)
 	end := time.Now()
 
-	assert.Equal(t, err, tErr)
-	assert.Equal(t, 3, c)
-	assert.True(t, end.Sub(start).Milliseconds() >= 300)
-	assert.True(t, end.Sub(start).Milliseconds() <= 500)
+	assert.EqualValues(t, tErr, err)
+	assert.EqualValues(t, 3, c)
+	assert.True(t, end.Sub(start).Milliseconds() >= 100)
+	assert.True(t, end.Sub(start).Milliseconds() <= 600)
 }
 
-func TestDoWithContextCancel(t *testing.T) {
-	tErr := errors.New("test")
-	cancelOn := 2
-	maxRetryTimes := 3
-	maxJitterInterval := 0 * time.Millisecond
-
+func TestDoWithContextDeadline(t *testing.T) {
+	t.Parallel()
 	c := 0
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	defer cancel()
+
+	var err error
+	var got string
 	start := time.Now()
-	ctx := context.Background()
-	reqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	err := DoWithContext(
-		reqCtx,
+	err = DoWithContext(
+		ctx,
 		func() error {
 			c++
-			if c == cancelOn {
-				cancel()
-			}
-			return tErr
+			got, err = getStringForTest(ctx)
+			return err
 		},
-		MaxRetryTimes(uint(maxRetryTimes)),
 		CheckRetryable(func(err error) bool {
-			if err == tErr {
-				return true
-			}
-			return false
+			return true
 		}),
-		MaxJitterInterval(maxJitterInterval),
 	)
 	end := time.Now()
 
-	assert.Equal(t, err, tErr)
-	assert.Equal(t, 2, c)
+	assert.EqualValues(t, context.DeadlineExceeded, err)
+	assert.EqualValues(t, 1, c)
+	assert.Equal(t, got, "")
 	assert.True(t, end.Sub(start).Milliseconds() >= 100)
-	assert.True(t, end.Sub(start).Milliseconds() <= 300)
+	assert.True(t, end.Sub(start).Milliseconds() <= 1100)
 }
 
 func getStringForTest(ctx context.Context) (got string, err error) {
@@ -192,39 +207,35 @@ func getStringForTest(ctx context.Context) (got string, err error) {
 	}
 }
 
-func TestDoRetryFast(t *testing.T) {
+func TestDoWithContextCanceled(t *testing.T) {
+	t.Parallel()
 	c := 0
-	maxRetryTimes := uint(1)
-	ctx := context.Background()
-	interval := 100 * time.Millisecond
+	tErr := errors.New("test")
+	ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
 
-	var err error
-	var got string
-	timeout := 200 * time.Millisecond
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		cancel()
+	}()
 	start := time.Now()
-	err = Do(
+	err := DoWithContext(
+		ctx,
 		func() error {
-			if c > 0 {
-				timeout *= 2
-			}
-			reqCtx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-
 			c++
-			got, err = getStringForTest(reqCtx)
-			return err
+			time.Sleep(100 * time.Millisecond)
+			return tErr
 		},
 		CheckRetryable(func(err error) bool {
-			return true
+			if err == tErr {
+				return true
+			}
+			return false
 		}),
-		Interval(interval),
-		MaxRetryTimes(maxRetryTimes),
 	)
 	end := time.Now()
 
-	assert.Error(t, err)
-	assert.EqualValues(t, maxRetryTimes+1, c)
-	assert.Equal(t, got, "")
-	assert.True(t, end.Sub(start).Milliseconds() >= 100)
+	assert.EqualValues(t, context.Canceled, err)
+	assert.EqualValues(t, 2, c)
+	assert.True(t, end.Sub(start).Milliseconds() >= 400)
 	assert.True(t, end.Sub(start).Milliseconds() <= 800)
 }

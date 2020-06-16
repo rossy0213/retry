@@ -1,4 +1,4 @@
-package retry4go
+package retry
 
 import "time"
 

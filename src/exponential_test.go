@@ -1,6 +1,7 @@
-package retry4go
+package retry
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func TestDefaultBackoff_Next(t *testing.T) {
+	t.Parallel()
 	eb := DefaultExponentialBackoff()
 
 	var d time.Duration
@@ -18,7 +20,9 @@ func TestDefaultBackoff_Next(t *testing.T) {
 			break
 		}
 
-		assert.True(t, time.Duration(float64(interval-eb.maxJitterInterval)) <= d)
-		assert.True(t, time.Duration(float64(interval+eb.maxJitterInterval)) >= d)
+		assert.True(t, interval-eb.maxJitterInterval <= d)
+		assert.True(t, interval+eb.maxJitterInterval >= d)
 	}
+	err := errors.New("test")
+	assert.False(t, eb.checkRetryable(err))
 }

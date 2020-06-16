@@ -1,4 +1,4 @@
-module github.com/bieshan/retry4go
+module github.com/rossy0213/retry
 
 go 1.14
 

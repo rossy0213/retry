@@ -1,4 +1,4 @@
-package retry4go
+package retry
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 )
 
 func TestWithTest(t *testing.T) {
+	t.Parallel()
 	eb := DefaultExponentialBackoff()
 	ctx := context.Background()
 	be := withContext(ctx, eb)
