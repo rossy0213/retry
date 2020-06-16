@@ -5,17 +5,17 @@ Default using exponential backoff.
 ## Example
 ``` go
 func DoSomething() error {
-    err := retry.Do(           // use DoWithContext() if you need context
-        doSomeThing(),
-        retry.ChckeRetryable(checkRetryable),
+	err := retry.Do( // use DoWithContext() if you need context
+		doSomeThing(),
+		retry.ChckeRetryable(checkRetryable),
 		retry.MaxRetryTimes(uint(5)),
-		retry.Interval(100.0 * time.Millisecond),
-		retry.MaxInterval(5000.0 * time.Millisecond),
-		retry.MaxJitterInterval(10.0 * time.Millisecond),
-		retry.MaxElapsedTime(10 * time.Minute),
+		retry.Interval(100.0*time.Millisecond),
+		retry.MaxInterval(5000.0*time.Millisecond),
+		retry.MaxJitterInterval(10.0*time.Millisecond),
+		retry.MaxElapsedTime(10*time.Minute),
 		retry.Multiplier(1.5),
-    )
-    return err   
+	)
+	return err
 }
 
 func doSomething() error {
