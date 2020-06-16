@@ -42,5 +42,7 @@ DefaultMaxElapsedTime = 5 * time.Minute
 
 ## Reference
 [backoff](https://github.com/cenkalti/backoff/)
+
 [retry-go](https://github.com/avast/retry-go)
+
 [retry](k8s.io/client-go/util/retry)
