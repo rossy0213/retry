@@ -1,6 +1,6 @@
-# Retry
-[![codecov](https://codecov.io/gh/takuoki/clmconv/branch/master/graph/badge.svg)](https://codecov.io/gh/rossy0213/retry)
+# Retry [![codecov](https://codecov.io/gh/takuoki/clmconv/branch/master/graph/badge.svg)](https://codecov.io/gh/rossy0213/retry)
 Retry with context or not.
+
 Default using exponential backoff.
 
 ## Example
