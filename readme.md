@@ -1,14 +1,16 @@
 # Retry [![codecov](https://codecov.io/gh/takuoki/clmconv/branch/master/graph/badge.svg)](https://codecov.io/gh/rossy0213/retry)
+
 Retry with context or not.
 
 Default using exponential backoff.
 
 ## Example
-``` go
+
+```go
 func DoSomething() error {
 	err := retry.Do( // use DoWithContext() if you need context
 		doSomeThing(),
-		retry.ChckeRetryable(checkRetryable),
+		retry.CheckRetryable(checkRetryable),
 		retry.MaxRetryTimes(uint(5)),
 		retry.Interval(100.0*time.Millisecond),
 		retry.MaxInterval(5000.0*time.Millisecond),
@@ -32,7 +34,8 @@ func checkRetryable(err error) bool {
 ```
 
 ### Default parameters
-``` go
+
+```go
 DefaultMaxRetryTimes  = 10
 DefaultInterval       = 100.0 * time.Millisecond
 DefaultMaxInterval    = 1000.0 * time.Millisecond
@@ -42,6 +45,7 @@ DefaultMaxElapsedTime = 5 * time.Minute
 ```
 
 ## Reference
+
 [backoff](https://github.com/cenkalti/backoff/)
 
 [retry-go](https://github.com/avast/retry-go)
